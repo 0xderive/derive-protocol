@@ -3,6 +3,7 @@ pragma solidity ^0.8.2;
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./ICatalogue.sol";
+import "hardhat/console.sol";
 
 /**
 @title Polly - on-chain catalogue for digital assets
@@ -27,11 +28,6 @@ contract Catalogue is AccessControl {
     mapping(uint => Counters.Counter) private _sources_count; /// @dev item_id => number of sources for item
     mapping(uint => mapping(string => string)) private _meta; /// @dev item_id => (key => value)
 
-    /// @dev collection mappings
-    mapping(uint => ICatalogue.Collection) private _colls;
-    mapping(uint => mapping(uint => uint)) private _coll_tracks;
-    mapping(uint => Counters.Counter) private _coll_items_count;
-
     /// @dev Maps like item_id => role => address => granted; 
     mapping(uint => mapping(string => mapping(address => bool))) private _item_roles; /// @dev item_id => (role => (address => granted))
 
@@ -41,10 +37,14 @@ contract Catalogue is AccessControl {
     event metaUpdated(string indexed _key, string indexed value);
     event metaDeleted(string indexed _key, string indexed value);
 
-    // Constructor
-    constructor(){
-      _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
-      _setupRole(MANAGER_ROLE, msg.sender);
+
+    function init(address for_) public {
+      require(!_didInit, 'Cannot init twice');
+
+      _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+      _grantRole(MANAGER_ROLE, msg.sender);
+
+      _didInit = true;
     }
 
     /**
@@ -56,13 +56,19 @@ contract Catalogue is AccessControl {
     /**
     @dev internal function to create new item for a given address
      */
-    function _createItemFor(ICatalogue.Item memory item_, address for_) private returns(uint){
+    function _createItemFor(ICatalogue.ItemInput memory item_, address for_) private returns(uint){
       
       _ids.increment();
       uint item_id_ = _ids.current();
 
-      _items[item_id_] = item_;
+      _items[item_id_] = ICatalogue.Item(
+        item_.name, item_.creator, item_.checksum
+      );
       _grantAllItemRoles(for_, item_id_);
+
+      for(uint i = 0; i < item_.sources.length; i++){
+        _addSource(item_id_, ICatalogue.Source(for_, item_.sources[i]));
+      }
 
       emit itemCreated(item_id_, for_);
       return item_id_;
@@ -74,28 +80,8 @@ contract Catalogue is AccessControl {
     @dev Creates a item entry in _items from the ICatalogue.Item Item struct passed in
     via item_. Sets the current sender as admin of the item.
     */
-    function createItem(ICatalogue.Item memory item_) public returns(uint){
+    function createItem(ICatalogue.ItemInput memory item_) public returns(uint){
       return _createItemFor(item_, msg.sender);
-    }
-
-    /**
-    @dev Creates a item entry in _items from the ICatalogue.Item Item struct passed in
-    via item_ and adds sources and meta to it. Sets the current sender as admin of the item.
-    */
-    function createItemWithSourcesAndMeta(ICatalogue.Item memory item_, string[] memory sources_, ICatalogue.Meta[] memory meta_) public onlyRole(MANAGER_ROLE) returns(uint) {
-
-      uint item_id_ = _createItemFor(item_, msg.sender);
-
-      for (uint256 i = 0; i < sources_.length; i++) {
-        _addSource(item_id_, ICatalogue.Source(msg.sender, sources_[i]));
-      }
-
-      for (uint256 i = 0; i < meta_.length; i++) {
-        _updateMeta(item_id_, meta_[i].key, meta_[i].value);
-      }
-
-      return item_id_;
-
     }
     
     /// @dev check if an item exists
@@ -140,49 +126,6 @@ contract Catalogue is AccessControl {
     }
 
 
-    /**
-    ***********
-    COLLECTIONS
-    ***********
-    */
-
-    function createCollection(ICatalogue.Collection memory coll_, ICatalogue.ItemInput[] memory items_) public onlyRole(MANAGER_ROLE) returns(uint) {
-      
-      _coll_ids.increment();
-      uint coll_id_ = _coll_ids.current();
-      uint work_id_;
-      
-      for (uint i = 0; i < items_.length; i++) {
-        
-        work_id_ = createItem(ICatalogue.Item(
-          items_[i].title,
-          items_[i].artist,
-          items_[i].checksum
-        ));
-        
-        addSource(work_id_, items_[i].source);
-        _coll_tracks[coll_id_][i+1] = work_id_;
-        _coll_items_count[coll_id_].increment();
-
-      }
-
-      _colls[coll_id_] = coll_;
-
-      return coll_id_;
-
-    }
-
-    function getCollection(uint coll_id_) public view returns(ICatalogue.Collection memory){
-      return _colls[coll_id_];
-    }
-
-    function getTotalCollections() public view returns(uint){
-      return _coll_ids.current();
-    }
-
-    function getItemCount(uint coll_id_) public view returns(uint){
-      return _coll_items_count[coll_id_].current();
-    }
 
 
     /**

@@ -1,10 +1,11 @@
 const { expect } = require("chai");
 const { keccak256 } = require("ethers/lib/utils");
 const { ethers } = require("hardhat");
+const {colors} = require('colors');
 
 describe("Derive", function () {
 
-  const labelID = 'My label';
+  const collID = 'My collection';
   const contracts = {};
   const users = [];
   
@@ -13,62 +14,81 @@ describe("Derive", function () {
   let wallet2;
   let wallet3;
 
-  let label1;
-  let label2;
-  let label3;
+  let coll1;
+  let coll2;
+  let coll3;
 
   it("should deploy", async function(){
 
     [owner, wallet1, wallet2, wallet3] = await hre.ethers.getSigners();
+    console.log(`   owner -> `, owner.address.yellow);
+    console.log(`   wallet1 -> `, wallet1.address.red);
+    console.log(`   wallet2 -> `, wallet2.address.yellow);
+    console.log(`   wallet3 -> `, wallet3.address.red);
+
     const Main = await ethers.getContractFactory("Main");
-    const Label = await ethers.getContractFactory("Label");
-    const Catalogue = await ethers.getContractFactory("Catalogue");
     contracts.main = await Main.deploy();
+    console.log(`   Main contract -> `, contracts.main.address.green);
 
     users[1] = await contracts.main.connect(wallet1);
     users[2] = await contracts.main.connect(wallet2);
     users[3] = await contracts.main.connect(wallet3);
+    expect(contracts.main.address).to.be.a.properAddress
 
-    await users[1].createLabel(labelID);
-    const proxy = await contracts.main.getLabelProxy(labelID);
-    label1 = await Label.attach(proxy.label).connect(wallet1)
+  });
+
+  it('should allow anyone to create a collection proxy', async function(){
+
+    await users[1].createCollection(collID);
+    const proxy = await contracts.main.getCollectionProxy(collID);
+
+    const Collection = await ethers.getContractFactory("Collection");
+    const Catalogue = await ethers.getContractFactory("Catalogue");
+
+    console.log(`   Collection proxy -> `, proxy.coll.green);
+    coll1 = await Collection.attach(proxy.coll).connect(wallet1)    
     cat1 = await Catalogue.attach(proxy.cat).connect(owner)
-    cat1.addManager(proxy.label)
+    // await cat1.addManager(proxy.coll)
 
-    expect(proxy.label).to.be.a.properAddress
+    expect(proxy.coll).to.be.a.properAddress
     expect(proxy.cat).to.be.a.properAddress
     expect(proxy.art).to.be.a.properAddress
     expect(proxy.meta).to.be.a.properAddress
 
   });
 
-  describe("label1", async function(){
+  describe("Collection 1", async function(){
 
-    it('can create release', async function(){
+    it('can create edition', async function(){
       
-      const release = [
+      const edition = [
+        "Greatest hits",
+        "The Greatest Artist Alive",
+        "All rights reserved",
         false, // bool released;
+        false, // bool finalised
         ethers.utils.parseEther('0.05'), // uint price;
         500, // uint supply;
-        wallet1.address, // address recipient_address;
+        wallet1.address, // address recipient;
         '0x0000000000000000000000000000000000000000', // address meta_address;
         '0x0000000000000000000000000000000000000000', // address artwork_address;
-        [ // ICatalogue.Collection collection;
-          "Greatest hits",
-          "Elton John",
-          "All rights reserved"
-        ],
         [ // ICatalogue.ItemInput[] items;
           [
             "First track",
             "First artist",
+            "filechecksum",
+            ["https://link.to/media.wav"]
+          ],
+          [
             "Second track",
-            "https://link.to/media"
+            "Second artist",
+            "other-filechecksum",
+            ["https://link.to/other-media.wav"]
           ]
         ],
       ];
 
-      await label1.createRelease(release);
+      await coll1.createEdition(edition);
 
     });
 

@@ -16,16 +16,10 @@ interface ICatalogue is IAccessControl {
     }
 
     struct ItemInput {
-      string title;
-      string artist;
+      string name;
+      string creator;
       string checksum;
-      string source;
-    }
-
-    struct Collection {
-      string title;
-      string artist;
-      string license;
+      string[] sources;
     }
 
     struct Meta {
@@ -33,16 +27,12 @@ interface ICatalogue is IAccessControl {
       string value;
     }
 
-    /// Collections
-    function createCollection(Collection memory coll_, ItemInput[] memory items_) external returns(uint);
-    function getCollection(uint collection_id_) external view returns(Collection memory);
-    function getCollectionItems(uint collection_id_) external view returns(Item[] memory);
+    function init(address for_) external;
 
     // Items
     function getItem(uint item_id_) external view returns(Item memory);
     function getItems(uint[] memory item_ids_) external view returns(Item[] memory);
-    function createItemWithSourcesAndMeta(Item memory item_, string[] memory sources_, Meta[] memory meta_) external returns(uint);
-    function createItem(Item memory item_) external returns(uint);
+    function createItem(ItemInput memory item_) external returns(uint);
     function getItemJSON(uint item_id_) external view returns(string memory);
 
     // Sources
