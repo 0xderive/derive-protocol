@@ -32,9 +32,9 @@ contract Collection is ERC1155, ERC1155Supply, AccessControl {
     }
 
     function init(address for_, string memory id_, address cat_, address art_, address meta_) public {
-        
+
         require(!_init, 'Cannot init twice');
-        
+
         _coll_id = id_;
 
         _cat = ICatalogue(cat_);
@@ -47,7 +47,7 @@ contract Collection is ERC1155, ERC1155Supply, AccessControl {
 
         _grantRole(DEFAULT_ADMIN_ROLE, for_);
         _grantRole(MANAGER_ROLE, for_);
-        
+
         _init = true;
 
 
@@ -57,16 +57,31 @@ contract Collection is ERC1155, ERC1155Supply, AccessControl {
         return _coll_id;
     }
 
-    function setCatalogue(address cat_) public onlyRole(MANAGER_ROLE){
+    function setCatalogueAddress(address cat_) public onlyRole(MANAGER_ROLE){
         _cat = ICatalogue(cat_);
     }
 
-    function setArtwork(address art_) public onlyRole(MANAGER_ROLE){
+    function getCatalogueAddress() public view returns(address){
+      return address(_cat);
+    }
+
+    function setArtworkAddress(address art_) public onlyRole(MANAGER_ROLE){
         _art = IArtwork(art_);
     }
-    function setMeta(address meta_) public onlyRole(MANAGER_ROLE){
+
+    function getArtworkAddress() public view returns(address){
+      return address(_art);
+    }
+
+
+    function setMetaAddress(address meta_) public onlyRole(MANAGER_ROLE){
         _meta = IMeta(meta_);
     }
+
+    function getMetaAddress() public view returns(address){
+      return address(_meta);
+    }
+
 
 
 
@@ -105,8 +120,15 @@ contract Collection is ERC1155, ERC1155Supply, AccessControl {
         _editions[id_].name = name_;
     }
 
+    function getEdition(
+      uint edition_id_
+    )
+    public view returns(ICollection.Edition memory) {
+      return _editions[edition_id_];
+    }
 
-    function isFinalised(uint id_) public returns(bool){
+
+    function isFinalised(uint id_) public view returns(bool){
         return _editions[id_].finalised;
     }
 

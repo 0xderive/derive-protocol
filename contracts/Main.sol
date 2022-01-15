@@ -36,7 +36,7 @@ contract Main {
         _coll = address(new Collection());
         _cat = address(new Catalogue());
         _art = address(new Artwork());
-        _meta = address(new Meta());        
+        _meta = address(new Meta());
         // ICollection(_coll).init('__base', _cat, _art, _meta);
 
     }
@@ -49,11 +49,11 @@ contract Main {
 
     /// @notice Creates a collection proxy and sets the owner to calling address
     /// @param id_ a string identification for the collection
-    
+
     function createCollection(
         string memory id_
     ) public {
-        
+
         require(!collectionExists(id_), 'Collection with that id already exists');
 
         Proxy memory proxy_ = Proxy(
@@ -72,7 +72,7 @@ contract Main {
     /// @notice Get the proxy address for collection with id_
     /// @param id_ a string identification for the collection
     /// @return address of the proxy;
-    
+
     function getCollectionProxy(
         string memory id_
     ) public view returns(Proxy memory){
@@ -80,7 +80,7 @@ contract Main {
         return _proxies[id_];
     }
 
-    
+
     /// @notice Determine wether a collection proxy exists or not
     /// @param id_ a string identification for the collection
     /// @return true if exists, false if not

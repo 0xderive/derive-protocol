@@ -4,7 +4,7 @@ pragma solidity ^0.8.2;
 import "./storage/ICatalogue.sol";
 
 interface ICollection {
-    
+
     struct Edition {
         uint id;
         string name;
@@ -35,15 +35,18 @@ interface ICollection {
     }
 
     function init(address for_, string memory id_, address cat_, address art_, address meta_) external;
-    function setCatalogue(address meta_) external;
-    function setArtwork(address meta_) external;
-    function setMeta(address meta_) external;
+    function setCatalogueAddress(address meta_) external;
+    function getCatalogueAddress() external view returns(address);
+    function setArtworkAddress(address meta_) external;
+    function getArtworkAddress() external view returns(address);
+    function setMetaAddress(address meta_) external;
+    function getMetaAddress() external view returns(address);
 
     function createEdition() external;
+    function getEdition(uint edition_id_) external view returns(Edition memory);
     function addItems() external;
     function removeItem() external;
     function finalize() external;
     function release() external;
-
 
 }
