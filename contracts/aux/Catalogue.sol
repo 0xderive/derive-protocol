@@ -2,12 +2,54 @@
 pragma solidity ^0.8.2;
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
-import "./ICatalogue.sol";
 import "hardhat/console.sol";
 
-/**
-@title Polly - on-chain catalogue for digital assets
-*/
+
+
+interface ICatalogue is IAccessControl {
+
+  struct Source {
+    address provider;
+    string source;
+  }
+
+  struct Item {
+    string name;
+    string creator;
+    string checksum;
+  }
+
+  struct ItemInput {
+    string name;
+    string creator;
+    string checksum;
+    string[] sources;
+  }
+
+  struct Meta {
+    string key;
+    string value;
+  }
+
+  function init() external;
+
+  // Items
+  function getItem(uint item_id_) external view returns(Item memory);
+  function getItems(uint[] memory item_ids_) external view returns(Item[] memory);
+  function createItem(ItemInput memory item_) external returns(uint);
+  function getItemJSON(uint item_id_) external view returns(string memory);
+
+  // Sources
+  function getSourceCount(uint item_id_) external view returns(uint);
+  function getSource(uint item_id_, uint source_no_) external view returns(Source memory);
+  function addSource(uint item_id_, string memory source) external;
+  function addSources(uint item_id_, string[] memory source) external;
+
+}
+
+
+
+
 
 contract Catalogue is AccessControl {
 
@@ -37,8 +79,8 @@ contract Catalogue is AccessControl {
   event metaUpdated(string indexed _key, string indexed value);
   event metaDeleted(string indexed _key, string indexed value);
 
-
-  function init(address for_) public {
+  /// @dev Inits contract for a given address
+  function init() public {
     require(!_didInit, 'Cannot init twice');
 
     _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);

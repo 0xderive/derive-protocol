@@ -4,6 +4,12 @@ pragma solidity ^0.8.2;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./../utils/base64.sol";
 
+interface IArtwork {
+
+  function getArtwork(uint edition_id_, bool base64_) external view returns(string memory);
+  function setArtwork(uint edition_id_, string memory artwork_) external;
+
+}
 
 
 ////////////////////////////////////
@@ -18,7 +24,7 @@ import "./../utils/base64.sol";
 @dev Default artwork contract for editions
 */
 
-contract Artwork_v1 is Ownable {
+contract Artwork is Ownable {
 
   /// @dev artwork mapping. (edition id => artwork string)
   mapping(uint => string) private _artworks;

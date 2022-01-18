@@ -4,11 +4,66 @@ pragma solidity ^0.8.4;
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-import "./ICollection.sol";
-import "./storage/ICatalogue.sol";
-import "./storage/IArtwork.sol";
-import "./storage/IMeta.sol";
+import "./aux/Catalogue.sol";
+import "./aux/Artwork.sol";
+import "./aux/Meta.sol";
+import "./aux/Hooks.sol";
+
+
+
+
+interface ICollection {
+
+    struct Edition {
+        uint id;
+        string name;
+        string creator;
+        string license;
+        bool released;
+        bool finalised;
+        uint price;
+        uint supply;
+        address recipient;
+        address meta_address;
+        address artwork_address;
+        uint[] items;
+    }
+
+    struct EditionInput {
+        string name;
+        string creator;
+        string license;
+        bool released;
+        bool finalised;
+        uint price;
+        uint supply;
+        address recipient;
+        address meta_address;
+        address artwork_address;
+        ICatalogue.ItemInput[] items;
+    }
+
+    function init(address for_, string memory id_, address cat_, address art_, address meta_) external;
+    function setCatalogueAddress(address meta_) external;
+    function getCatalogueAddress() external view returns(address);
+    function setArtworkAddress(address meta_) external;
+    function getArtworkAddress() external view returns(address);
+    function setMetaAddress(address meta_) external;
+    function getMetaAddress() external view returns(address);
+
+    function createEdition() external;
+    function getEdition(uint edition_id_) external view returns(Edition memory);
+    function addItems() external;
+    function removeItem() external;
+    function finalize() external;
+    function release() external;
+
+}
+
+
+
 
 contract Collection is ERC1155, ERC1155Supply, AccessControl {
 
@@ -17,11 +72,12 @@ contract Collection is ERC1155, ERC1155Supply, AccessControl {
     ICatalogue private _cat;
     IArtwork private _art;
     IMeta private _meta;
+    IHooks private _hooks;
 
     uint private _edition_ids;
     mapping(uint => ICollection.Edition) private _editions;
 
-    string private _coll_id = 'hello';
+    string private _coll_id = '';
 
     /// @dev MANAGER_ROLE allow addresses to use the label contract
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
@@ -38,7 +94,7 @@ contract Collection is ERC1155, ERC1155Supply, AccessControl {
         _coll_id = id_;
 
         _cat = ICatalogue(cat_);
-        _cat.init(for_);
+        _cat.init();
         _cat.grantRole(keccak256("DEFAULT_ADMIN_ROLE"), for_);
         _cat.grantRole(keccak256("MANAGER_ROLE"), for_);
 
@@ -75,12 +131,21 @@ contract Collection is ERC1155, ERC1155Supply, AccessControl {
 
 
     function setMetaAddress(address meta_) public onlyRole(MANAGER_ROLE){
-        _meta = IMeta(meta_);
+      _meta = IMeta(meta_);
     }
 
     function getMetaAddress() public view returns(address){
       return address(_meta);
     }
+
+    function setHooksAddress(address hooks_) public onlyRole(MANAGER_ROLE){
+      _hooks = IHooks(hooks_);
+    }
+
+    function getHooksAddress() public view returns(address){
+      return address(_hooks);
+    }
+
 
 
 
@@ -89,7 +154,10 @@ contract Collection is ERC1155, ERC1155Supply, AccessControl {
     /// RELEASES
     ////////////////////////////////////////////////////
 
-    function createEdition(ICollection.EditionInput memory edition_) public onlyRole(MANAGER_ROLE) {
+    function createEdition(
+      ICollection.EditionInput memory edition_
+    )
+    public onlyRole(MANAGER_ROLE) {
 
         uint[] memory items_;
         uint item_id_;
@@ -115,9 +183,14 @@ contract Collection is ERC1155, ERC1155Supply, AccessControl {
 
     }
 
-    function setEditionName(uint id_, string memory name_) public onlyRole(MANAGER_ROLE) {
-        require(!isFinalised(id_), 'Edition is finalised');
-        _editions[id_].name = name_;
+    function setEditionName(
+      uint edition_id_,
+      string memory name_
+    )
+    public onlyRole(MANAGER_ROLE) {
+      _hooks.beforeSetEditionName(edition_id_, msg.sender);
+      // require(canSetEditionName(edition_id_, name_, msg.sender));
+      _editions[edition_id_].name = name_;
     }
 
     function getEdition(
@@ -127,9 +200,43 @@ contract Collection is ERC1155, ERC1155Supply, AccessControl {
       return _editions[edition_id_];
     }
 
+    function isFinalised(
+      uint edition_id_
+    ) public view returns(bool){
+        return _editions[edition_id_].finalised;
+    }
 
-    function isFinalised(uint id_) public view returns(bool){
-        return _editions[id_].finalised;
+    function isReleased(
+      uint edition_id_
+    ) public view returns(bool){
+        return _editions[edition_id_].released;
+    }
+
+
+    function mint(
+      uint edition_id_
+    )
+    public payable {
+
+      // require(canMint(msg.sender, edition_id_), 'INVALID_ADDRESS');
+      // require(_editions[edition_id_].released, "INVALID_RELEASE");
+      // require(msg.value ==  _editions[edition_id_].price, "INVALID_PRICE");
+      // require((getAvailable(edition_id_) > 0), "NOT_AVAILABLE");
+
+      (bool sent, bytes memory data) =  _editions[edition_id_].recipient.call{value: msg.value}("");
+      require(sent, "Failed to send Ether");
+
+      _mintFor(msg.sender, edition_id_);
+      // _last_mint[msg.sender][edition_id_] = block.timestamp;
+
+    }
+
+
+    function _mintFor(
+      address for_,
+      uint edition_id_
+    ) private {
+      _mint(for_, edition_id_, 1, "");
     }
 
 

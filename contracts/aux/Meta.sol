@@ -4,10 +4,18 @@ pragma solidity ^0.8.2;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./../utils/base64.sol";
 
-import "./../ICollection.sol";
-import "./ICatalogue.sol";
-import "./IArtwork.sol";
-import "./IMeta.sol";
+import "./../Collection.sol";
+import "./Catalogue.sol";
+import "./Artwork.sol";
+
+
+
+interface IMeta {
+
+  function getMeta(uint edition_id_, bool base64_) external view returns(string memory);
+
+}
+
 
 
 

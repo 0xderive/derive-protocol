@@ -5,10 +5,10 @@ import "@openzeppelin/contracts/proxy/Clones.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/IAccessControl.sol";
 import "./Collection.sol";
-import "./ICollection.sol";
-import "./storage/Catalogue.sol";
-import "./storage/Artwork.sol";
-import "./storage/Meta.sol";
+import "./aux/Catalogue.sol";
+import "./aux/Artwork.sol";
+import "./aux/Meta.sol";
+import "./aux/Hooks.sol";
 import "hardhat/console.sol";
 
 interface IOwnable {
@@ -22,6 +22,7 @@ contract Main {
         address cat;
         address art;
         address meta;
+        address flow;
     }
 
     mapping(string => Proxy) private _proxies;
@@ -30,6 +31,7 @@ contract Main {
     address private _cat;
     address private _art;
     address private _meta;
+    address private _hooks;
 
     constructor() {
 
@@ -37,6 +39,7 @@ contract Main {
         _cat = address(new Catalogue());
         _art = address(new Artwork());
         _meta = address(new Meta());
+        _hooks = address(new Hooks());
         // ICollection(_coll).init('__base', _cat, _art, _meta);
 
     }
@@ -60,7 +63,8 @@ contract Main {
             Clones.clone(_coll),
             Clones.clone(_cat),
             Clones.clone(_art),
-            Clones.clone(_meta)
+            Clones.clone(_meta),
+            Clones.clone(_hooks)
         );
 
         ICollection(proxy_.coll).init(msg.sender, id_, proxy_.cat, proxy_.art, proxy_.meta);
