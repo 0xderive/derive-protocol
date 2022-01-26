@@ -5,11 +5,9 @@ import "@openzeppelin/contracts/proxy/Clones.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/IAccessControl.sol";
 import "./Collection.sol";
-import "./aux/Catalogue.sol";
-import "./aux/Artwork.sol";
-import "./aux/Meta.sol";
-import "./aux/Hooks.sol";
-import "hardhat/console.sol";
+import "./Catalogue.sol";
+import "./Aux.sol";
+import "./AuxHandler.sol";
 
 interface IOwnable {
     function transferOwnership(address newOwner) external;
@@ -20,27 +18,20 @@ contract Main {
     struct Proxy {
         address coll;
         address cat;
-        address art;
-        address meta;
-        address flow;
+        address aux_handler;
     }
 
     mapping(string => Proxy) private _proxies;
     mapping(address => string) private _proxy_ids;
     address private _coll;
     address private _cat;
-    address private _art;
-    address private _meta;
-    address private _hooks;
+    address private _aux_handler;
 
     constructor() {
 
         _coll = address(new Collection());
         _cat = address(new Catalogue());
-        _art = address(new Artwork());
-        _meta = address(new Meta());
-        _hooks = address(new Hooks());
-        // ICollection(_coll).init('__base', _cat, _art, _meta);
+        _aux_handler = address(new AuxHandler());
 
     }
 
@@ -54,7 +45,8 @@ contract Main {
     /// @param id_ a string identification for the collection
 
     function createCollection(
-        string memory id_
+        string memory id_,
+        address[] memory aux_
     ) public {
 
         require(!collectionExists(id_), 'Collection with that id already exists');
@@ -62,12 +54,10 @@ contract Main {
         Proxy memory proxy_ = Proxy(
             Clones.clone(_coll),
             Clones.clone(_cat),
-            Clones.clone(_art),
-            Clones.clone(_meta),
-            Clones.clone(_hooks)
+            Clones.clone(_aux_handler)
         );
 
-        ICollection(proxy_.coll).init(msg.sender, id_, proxy_.cat, proxy_.art, proxy_.meta);
+        ICollection(proxy_.coll).init(msg.sender, id_, proxy_.cat, proxy_.aux_handler, aux_);
 
         _proxies[id_] = proxy_;
 

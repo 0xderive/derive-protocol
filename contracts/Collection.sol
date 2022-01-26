@@ -6,13 +6,11 @@ import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-import "./aux/Catalogue.sol";
-import "./aux/Artwork.sol";
-import "./aux/Meta.sol";
-import "./aux/Hooks.sol";
+import "./Catalogue.sol";
+import "./Aux.sol";
+import "./AuxHandler.sol";
 
-
-
+import "hardhat/console.sol";
 
 interface ICollection {
 
@@ -45,13 +43,9 @@ interface ICollection {
         ICatalogue.ItemInput[] items;
     }
 
-    function init(address for_, string memory id_, address cat_, address art_, address meta_) external;
+    function init(address for_, string memory id_, address cat_, address aux_handler_, address[] memory aux_) external;
     function setCatalogueAddress(address meta_) external;
     function getCatalogueAddress() external view returns(address);
-    function setArtworkAddress(address meta_) external;
-    function getArtworkAddress() external view returns(address);
-    function setMetaAddress(address meta_) external;
-    function getMetaAddress() external view returns(address);
 
     function createEdition() external;
     function getEdition(uint edition_id_) external view returns(Edition memory);
@@ -60,9 +54,10 @@ interface ICollection {
     function finalize() external;
     function release() external;
 
+
+    function addAux(address aux_) external;
+
 }
-
-
 
 
 contract Collection is ERC1155, ERC1155Supply, AccessControl {
@@ -70,9 +65,9 @@ contract Collection is ERC1155, ERC1155Supply, AccessControl {
     bool _init = false;
 
     ICatalogue private _cat;
-    IArtwork private _art;
-    IMeta private _meta;
-    IHooks private _hooks;
+    IAuxHandler private _aux_handler;
+
+    mapping(string => address) private _hooks;
 
     uint private _edition_ids;
     mapping(uint => ICollection.Edition) private _editions;
@@ -83,13 +78,16 @@ contract Collection is ERC1155, ERC1155Supply, AccessControl {
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
     constructor() ERC1155("") {
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(MANAGER_ROLE, msg.sender);
+        // _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        // _grantRole(MANAGER_ROLE, msg.sender);
     }
 
-    function init(address for_, string memory id_, address cat_, address art_, address meta_) public {
+    function init(address for_, string memory id_, address cat_, address aux_handler_, address[] memory aux_) public {
 
         require(!_init, 'Cannot init twice');
+
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(MANAGER_ROLE, msg.sender);
 
         _coll_id = id_;
 
@@ -98,11 +96,21 @@ contract Collection is ERC1155, ERC1155Supply, AccessControl {
         _cat.grantRole(keccak256("DEFAULT_ADMIN_ROLE"), for_);
         _cat.grantRole(keccak256("MANAGER_ROLE"), for_);
 
-        _art = IArtwork(art_);
-        _meta = IMeta(meta_);
+        _aux_handler = IAuxHandler(aux_handler_);
+        _aux_handler.init();
+        _aux_handler.grantRole(keccak256("DEFAULT_ADMIN_ROLE"), for_);
+        _aux_handler.grantRole(keccak256("MANAGER_ROLE"), for_);
 
         _grantRole(DEFAULT_ADMIN_ROLE, for_);
         _grantRole(MANAGER_ROLE, for_);
+
+        for(uint256 i = 0; i < aux_.length; i++) {
+          _aux_handler.addAux(aux_[i]);
+        }
+
+        _revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _revokeRole(MANAGER_ROLE, msg.sender);
+
 
         _init = true;
 
@@ -113,45 +121,8 @@ contract Collection is ERC1155, ERC1155Supply, AccessControl {
         return _coll_id;
     }
 
-    function setCatalogueAddress(address cat_) public onlyRole(MANAGER_ROLE){
-        _cat = ICatalogue(cat_);
-    }
-
-    function getCatalogueAddress() public view returns(address){
-      return address(_cat);
-    }
-
-    function setArtworkAddress(address art_) public onlyRole(MANAGER_ROLE){
-        _art = IArtwork(art_);
-    }
-
-    function getArtworkAddress() public view returns(address){
-      return address(_art);
-    }
-
-
-    function setMetaAddress(address meta_) public onlyRole(MANAGER_ROLE){
-      _meta = IMeta(meta_);
-    }
-
-    function getMetaAddress() public view returns(address){
-      return address(_meta);
-    }
-
-    function setHooksAddress(address hooks_) public onlyRole(MANAGER_ROLE){
-      _hooks = IHooks(hooks_);
-    }
-
-    function getHooksAddress() public view returns(address){
-      return address(_hooks);
-    }
-
-
-
-
-
     ////////////////////////////////////////////////////
-    /// RELEASES
+    /// EDITIONS
     ////////////////////////////////////////////////////
 
     function createEdition(
@@ -188,7 +159,7 @@ contract Collection is ERC1155, ERC1155Supply, AccessControl {
       string memory name_
     )
     public onlyRole(MANAGER_ROLE) {
-      _hooks.beforeSetEditionName(edition_id_, msg.sender);
+
       // require(canSetEditionName(edition_id_, name_, msg.sender));
       _editions[edition_id_].name = name_;
     }
@@ -239,6 +210,17 @@ contract Collection is ERC1155, ERC1155Supply, AccessControl {
       _mint(for_, edition_id_, 1, "");
     }
 
+
+    function uri(uint edition_id_) public view override returns(string memory uri_){
+
+      IAux[] memory hooks_ = _aux_handler.getAuxForHook('getURI');
+      for(uint256 i = 0; i < hooks_.length; i++) {
+        uri_ = hooks_[i].getURI(uri_, edition_id_);
+      }
+
+      return uri_;
+
+    }
 
     // Overrides
     function _beforeTokenTransfer(

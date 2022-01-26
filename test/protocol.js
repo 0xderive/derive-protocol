@@ -8,7 +8,7 @@ describe("Derive", function () {
   const collID = 'My collection';
   const contracts = {};
   const users = [];
-  
+
   let owner;
   let wallet1;
   let wallet2;
@@ -28,7 +28,16 @@ describe("Derive", function () {
 
     const Main = await ethers.getContractFactory("Main");
     contracts.main = await Main.deploy();
+
+    const AuxMeta = await ethers.getContractFactory("AuxMeta");
+    contracts.meta = await AuxMeta.deploy();
+
+    const AuxArtwork = await ethers.getContractFactory("AuxArtwork");
+    contracts.artwork = await AuxArtwork.deploy();
+
     console.log(`   Main contract -> `, contracts.main.address.green);
+    console.log(`   Artwork contract -> `, contracts.artwork.address.green);
+    console.log(`   Meta contract -> `, contracts.meta.address.green);
 
     users[1] = await contracts.main.connect(wallet1);
     users[2] = await contracts.main.connect(wallet2);
@@ -39,28 +48,26 @@ describe("Derive", function () {
 
   it('should allow anyone to create a collection proxy', async function(){
 
-    await users[1].createCollection(collID);
+    await users[1].createCollection(collID, [contracts.artwork.address, contracts.meta.address]);
     const proxy = await contracts.main.getCollectionProxy(collID);
 
     const Collection = await ethers.getContractFactory("Collection");
     const Catalogue = await ethers.getContractFactory("Catalogue");
 
     console.log(`   Collection proxy -> `, proxy.coll.green);
-    coll1 = await Collection.attach(proxy.coll).connect(wallet1)    
+    coll1 = await Collection.attach(proxy.coll).connect(wallet1)
     cat1 = await Catalogue.attach(proxy.cat).connect(owner)
     // await cat1.addManager(proxy.coll)
 
     expect(proxy.coll).to.be.a.properAddress
     expect(proxy.cat).to.be.a.properAddress
-    expect(proxy.art).to.be.a.properAddress
-    expect(proxy.meta).to.be.a.properAddress
 
   });
 
   describe("Collection 1", async function(){
 
     it('can create edition', async function(){
-      
+
       const edition = [
         "Greatest hits",
         "The Greatest Artist Alive",
@@ -92,6 +99,14 @@ describe("Derive", function () {
 
     });
 
+
+    it('can output URI', async function(){
+      const json = await coll1.uri(1);
+      console.log(json);
+      expect(1).to.equal(1);
+    });
+
   });
+
 
 });
