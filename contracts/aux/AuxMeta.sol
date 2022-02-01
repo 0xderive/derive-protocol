@@ -9,13 +9,7 @@ import "./../Aux.sol";
 import "./../Catalogue.sol";
 import "./AuxArtwork.sol";
 
-
-
-interface IAuxMeta {
-
-  function getMeta(uint edition_id_, bool base64_) external view returns(string memory);
-
-}
+import 'hardhat/console.sol';
 
 
 ////////////////////////////////////
@@ -30,44 +24,47 @@ interface IAuxMeta {
 /// @dev Uses collection and artwork contract to produce metadata including json encoded meta
 contract AuxMeta is Aux {
 
-  string private constant AUX_NAME = 'meta';
-  bool private constant AUX_CLONE = true;
+  string[] private _hooks = ['filterGetURI'];
 
-  string[] private _hooks = ['getURI'];
-
-  constructor(){
+  constructor() {
     registerHooks(_hooks);
   }
 
-
-  function getAuxName() public pure returns(string memory){
-    return 'meta v1';
+  function getAuxInfo() public view returns(IAux.AuxInfo memory){
+    return IAux.AuxInfo(
+      'meta v1',
+      address(this),
+      false /// @dev don't clone
+    );
   }
 
-  function getURI(
+  function filterGetURI(
     string memory uri_,
     uint edition_id_
   )
   public view returns(string memory) {
 
-    ICollection coll_ = ICollection(msg.sender);
+    ICollection coll_ = ICollection(IAuxHandler(msg.sender).getCollectionAddress());
     ICatalogue cat_ = ICatalogue(coll_.getCatalogueAddress());
     ICollection.Edition memory edition_ = coll_.getEdition(edition_id_);
 
-    string memory items_json_ = "{";
-    for (uint256 i = 0; i < edition_.items.length; i++) {
-      items_json_ = string(abi.encodePacked(items_json_, cat_.getItemJSON(edition_.items[i]), (i < edition_.items.length ? ',' : '}')));
+    string memory items_json_ = "";
+    for(uint i = 0; i < edition_.items.length; i++) {
+      items_json_ = string(abi.encodePacked(items_json_, cat_.getItemJSON(edition_.items[i]), (i < edition_.items.length ? ',' : '')));
       i++;
     }
+
+    string memory artwork_ = '';
 
     uri_ = string(abi.encodePacked(
       '{',
         '"name": "', edition_.name,'",',
-        '"items": ', items_json_,''
+        '"image": "', artwork_,'",',
+        '"items": [', items_json_,']'
       '}'
     ));
 
-    return Base64.encode(bytes(uri_));
+    return string(abi.encodePacked('data:application/json;base64,', Base64.encode(bytes(uri_))));
 
   }
 

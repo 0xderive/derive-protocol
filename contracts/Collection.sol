@@ -8,7 +8,6 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 import "./Catalogue.sol";
 import "./Aux.sol";
-import "./AuxHandler.sol";
 
 import "hardhat/console.sol";
 
@@ -18,28 +17,18 @@ interface ICollection {
         uint id;
         string name;
         string creator;
-        string license;
-        bool released;
-        bool finalised;
         uint price;
         uint supply;
         address recipient;
-        address meta_address;
-        address artwork_address;
         uint[] items;
     }
 
     struct EditionInput {
         string name;
         string creator;
-        string license;
-        bool released;
-        bool finalised;
         uint price;
         uint supply;
         address recipient;
-        address meta_address;
-        address artwork_address;
         ICatalogue.ItemInput[] items;
     }
 
@@ -51,9 +40,6 @@ interface ICollection {
     function getEdition(uint edition_id_) external view returns(Edition memory);
     function addItems() external;
     function removeItem() external;
-    function finalize() external;
-    function release() external;
-
 
     function addAux(address aux_) external;
 
@@ -71,6 +57,8 @@ contract Collection is ERC1155, ERC1155Supply, AccessControl {
 
     uint private _edition_ids;
     mapping(uint => ICollection.Edition) private _editions;
+    mapping(uint => bool) private _released;
+    mapping(uint => bool) private _finalized;
 
     string private _coll_id = '';
 
@@ -121,48 +109,46 @@ contract Collection is ERC1155, ERC1155Supply, AccessControl {
         return _coll_id;
     }
 
+    function getCatalogueAddress() public view returns(address){
+      return address(_cat);
+    }
+
     ////////////////////////////////////////////////////
     /// EDITIONS
     ////////////////////////////////////////////////////
 
     function createEdition(
-      ICollection.EditionInput memory edition_
+      ICollection.EditionInput memory edition_input_
     )
     public onlyRole(MANAGER_ROLE) {
 
-        uint[] memory items_;
+        uint[] memory items_ = new uint[](edition_input_.items.length);
         uint item_id_;
-        for(uint256 i = 0; i < edition_.items.length; i++) {
-            item_id_ = _cat.createItem(edition_.items[i]);
+
+        for(uint i = 0; i < edition_input_.items.length; i++) {
+            item_id_ = _cat.createItem(edition_input_.items[i]);
+            items_[i] = item_id_;
         }
 
-        _edition_ids++;
-        _editions[_edition_ids] = ICollection.Edition(
+        ICollection.Edition memory edition_ = ICollection.Edition(
             _edition_ids,
-            edition_.name,
-            edition_.creator,
-            edition_.license,
-            edition_.released,
-            edition_.finalised,
-            edition_.price,
-            edition_.supply,
-            edition_.recipient,
-            edition_.meta_address,
-            edition_.artwork_address,
+            edition_input_.name,
+            edition_input_.creator,
+            edition_input_.price,
+            edition_input_.supply,
+            edition_input_.recipient,
             items_
         );
 
+        _aux_handler.actionBeforeCreateEdition(edition_, msg.sender);
+
+        _edition_ids++;
+        _editions[_edition_ids] = edition_;
+
+        _aux_handler.actionAfterCreateEdition(_editions[_edition_ids], msg.sender);
+
     }
 
-    function setEditionName(
-      uint edition_id_,
-      string memory name_
-    )
-    public onlyRole(MANAGER_ROLE) {
-
-      // require(canSetEditionName(edition_id_, name_, msg.sender));
-      _editions[edition_id_].name = name_;
-    }
 
     function getEdition(
       uint edition_id_
@@ -171,16 +157,34 @@ contract Collection is ERC1155, ERC1155Supply, AccessControl {
       return _editions[edition_id_];
     }
 
-    function isFinalised(
+
+    function isFinalized(
       uint edition_id_
     ) public view returns(bool){
-        return _editions[edition_id_].finalised;
+      return _finalized[edition_id_];
     }
+
 
     function isReleased(
       uint edition_id_
     ) public view returns(bool){
-        return _editions[edition_id_].released;
+      return _released[edition_id_];
+    }
+
+    /// @dev returns filtered supply as long a it is below max
+    function getAvailable(
+      uint edition_id_
+    ) public view returns(uint){
+      uint max_ = _editions[edition_id_].supply - totalSupply(edition_id_);
+      uint avail_ = _aux_handler.filterGetAvailable(max_, edition_id_);
+      return avail_ <= max_ ? avail_ : max_;
+    }
+
+    /// @dev returns filtered price
+    function isValidPrice(uint edition_id_, uint price_) public view returns(bool) {
+      bool valid_ = (_editions[edition_id_].price == price_);
+      valid_ = _aux_handler.filterIsValidPrice(valid_, edition_id_, price_);
+      return valid_;
     }
 
 
@@ -189,16 +193,18 @@ contract Collection is ERC1155, ERC1155Supply, AccessControl {
     )
     public payable {
 
-      // require(canMint(msg.sender, edition_id_), 'INVALID_ADDRESS');
-      // require(_editions[edition_id_].released, "INVALID_RELEASE");
-      // require(msg.value ==  _editions[edition_id_].price, "INVALID_PRICE");
-      // require((getAvailable(edition_id_) > 0), "NOT_AVAILABLE");
+      require(isReleased(edition_id_), "UNRELEASED");
+      require(isValidPrice(edition_id_, msg.value), "INVALID_PRICE");
+      require((getAvailable(edition_id_) > 0), "NOT_AVAILABLE");
+
+      _aux_handler.actionBeforeMint(edition_id_, msg.sender);
 
       (bool sent, bytes memory data) =  _editions[edition_id_].recipient.call{value: msg.value}("");
-      require(sent, "Failed to send Ether");
+      require(sent, "FAILED TO SEND ETH");
 
       _mintFor(msg.sender, edition_id_);
-      // _last_mint[msg.sender][edition_id_] = block.timestamp;
+
+      _aux_handler.actionAfterMint(edition_id_, msg.sender);
 
     }
 
@@ -212,14 +218,7 @@ contract Collection is ERC1155, ERC1155Supply, AccessControl {
 
 
     function uri(uint edition_id_) public view override returns(string memory uri_){
-
-      IAux[] memory hooks_ = _aux_handler.getAuxForHook('getURI');
-      for(uint256 i = 0; i < hooks_.length; i++) {
-        uri_ = hooks_[i].getURI(uri_, edition_id_);
-      }
-
-      return uri_;
-
+      return _aux_handler.filterGetURI(uri_, edition_id_);
     }
 
     // Overrides
@@ -251,3 +250,4 @@ contract Collection is ERC1155, ERC1155Supply, AccessControl {
 
 
 }
+

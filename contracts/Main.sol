@@ -7,7 +7,6 @@ import "@openzeppelin/contracts/access/IAccessControl.sol";
 import "./Collection.sol";
 import "./Catalogue.sol";
 import "./Aux.sol";
-import "./AuxHandler.sol";
 
 interface IOwnable {
     function transferOwnership(address newOwner) external;

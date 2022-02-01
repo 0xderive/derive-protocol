@@ -29,20 +29,31 @@ contract AuxArtwork is Ownable, Aux {
 
   /// @dev artwork mapping. (edition id => artwork string)
   mapping(uint => string) private _artworks;
+  string[] private _hooks = ['filterGetArtwork'];
+
+
+  function init() public {
+    registerHooks(_hooks);
+  }
+
+  function getAuxInfo() public view returns(IAux.AuxInfo memory){
+    return IAux.AuxInfo(
+      'meta v1',
+      address(this),
+      true
+    );
+  }
 
   /// @dev Get the artwork string for a given release
   /// @param edition_id_ The id of the edition in the main contract
-  /// @param base64_ Boolean determining wether to base64 encode the output string
   /// @return String containing the artwork url
-  function getArtwork(
-    uint edition_id_,
-    bool base64_
+  function filterGetArtwork(
+    string memory artwork_,
+    uint edition_id_
   )
   public view returns (string memory) {
-    string memory artwork_ = _artworks[edition_id_];
-    if(base64_)
-      artwork_ = Base64.encode(bytes(artwork_));
-    return artwork_;
+    string memory new_artwork_ = _artworks[edition_id_];
+    return new_artwork_;
   }
 
   /// @dev Allows the caller to set the artwork string for a given edition. Only settable once.

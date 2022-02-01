@@ -71,14 +71,9 @@ describe("Derive", function () {
       const edition = [
         "Greatest hits",
         "The Greatest Artist Alive",
-        "All rights reserved",
-        false, // bool released;
-        false, // bool finalised
         ethers.utils.parseEther('0.05'), // uint price;
         500, // uint supply;
         wallet1.address, // address recipient;
-        '0x0000000000000000000000000000000000000000', // address meta_address;
-        '0x0000000000000000000000000000000000000000', // address artwork_address;
         [ // ICatalogue.ItemInput[] items;
           [
             "First track",
