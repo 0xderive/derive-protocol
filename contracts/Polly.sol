@@ -6,31 +6,39 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/IAccessControl.sol";
 import "./Collection.sol";
 import "./Catalogue.sol";
+import "./Meta.sol";
 import "./Aux.sol";
 
 interface IOwnable {
     function transferOwnership(address newOwner) external;
 }
 
-contract Main {
+interface IPolly {
+  struct Instance {
+    address owner;
+    address coll;
+    address cat;
+    address meta;
+    address aux_handler;
+  }
+}
 
-    struct Proxy {
-        address coll;
-        address cat;
-        address aux_handler;
-    }
+contract Polly {
 
-    mapping(string => Proxy) private _proxies;
-    mapping(address => string) private _proxy_ids;
+
+    mapping(string => IPolly.Instance) private _instances;
+    mapping(address => string) private _instance_ids;
     address private _coll;
     address private _cat;
+    address private _meta;
     address private _aux_handler;
 
     constructor() {
 
-        _coll = address(new Collection());
-        _cat = address(new Catalogue());
-        _aux_handler = address(new AuxHandler());
+      _coll = address(new Collection());
+      _cat = address(new Catalogue());
+      _meta = address(new Meta());
+      _aux_handler = address(new AuxHandler());
 
     }
 
@@ -40,7 +48,7 @@ contract Main {
     ************
     */
 
-    /// @notice Creates a collection proxy and sets the owner to calling address
+    /// @notice Creates a collection instance and sets the owner to calling address
     /// @param id_ a string identification for the collection
 
     function createCollection(
@@ -50,38 +58,43 @@ contract Main {
 
         require(!collectionExists(id_), 'Collection with that id already exists');
 
-        Proxy memory proxy_ = Proxy(
+        IPolly.Instance memory instance_ = IPolly.Instance(
+            msg.sender,
             Clones.clone(_coll),
             Clones.clone(_cat),
+            Clones.clone(_meta),
             Clones.clone(_aux_handler)
         );
 
-        ICollection(proxy_.coll).init(msg.sender, id_, proxy_.cat, proxy_.aux_handler, aux_);
+        ICollection(instance_.coll).init(instance_);
+        ICatalogue(instance_.cat).init(instance_);
+        IMeta(instance_.meta).init(instance_);
+        IAuxHandler(instance_.aux_handler).init(instance_, aux_);
 
-        _proxies[id_] = proxy_;
+        _instances[id_] = instance_;
 
     }
 
-    /// @notice Get the proxy address for collection with id_
+    /// @notice Get the instance address for collection with id_
     /// @param id_ a string identification for the collection
-    /// @return address of the proxy;
+    /// @return address of the instance;
 
-    function getCollectionProxy(
+    function getCollectionInstance(
         string memory id_
-    ) public view returns(Proxy memory){
+    ) public view returns(IPolly.Instance memory){
         require(collectionExists(id_), 'Collection does not exist');
-        return _proxies[id_];
+        return _instances[id_];
     }
 
 
-    /// @notice Determine wether a collection proxy exists or not
+    /// @notice Determine wether a collection instance exists or not
     /// @param id_ a string identification for the collection
     /// @return true if exists, false if not
 
     function collectionExists(
         string memory id_
     ) public view returns(bool){
-        return !(_proxies[id_].coll == address(0));
+        return !(_instances[id_].coll == address(0));
     }
 
 

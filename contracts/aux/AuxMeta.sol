@@ -44,7 +44,8 @@ contract AuxMeta is Aux {
   )
   public view returns(string memory) {
 
-    ICollection coll_ = ICollection(IAuxHandler(msg.sender).getCollectionAddress());
+    IAuxHandler aux_handler_ = IAuxHandler(msg.sender);
+    ICollection coll_ = ICollection(aux_handler_.getCollectionAddress());
     ICatalogue cat_ = ICatalogue(coll_.getCatalogueAddress());
     ICollection.Edition memory edition_ = coll_.getEdition(edition_id_);
 
@@ -54,7 +55,7 @@ contract AuxMeta is Aux {
       i++;
     }
 
-    string memory artwork_ = '';
+    string memory artwork_ = aux_handler_.filterGetArtwork('', edition_.id);
 
     uri_ = string(abi.encodePacked(
       '{',

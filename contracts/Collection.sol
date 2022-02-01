@@ -6,8 +6,11 @@ import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
+import "./Polly.sol";
 import "./Catalogue.sol";
 import "./Aux.sol";
+import "./Meta.sol";
+import "./Initializable.sol";
 
 import "hardhat/console.sol";
 
@@ -32,25 +35,26 @@ interface ICollection {
         ICatalogue.ItemInput[] items;
     }
 
-    function init(address for_, string memory id_, address cat_, address aux_handler_, address[] memory aux_) external;
+    function init(IPolly.Instance memory instance_) external;
     function setCatalogueAddress(address meta_) external;
     function getCatalogueAddress() external view returns(address);
 
-    function createEdition() external;
+    function createEdition(ICollection.EditionInput memory edition_input_) external;
     function getEdition(uint edition_id_) external view returns(Edition memory);
-    function addItems() external;
-    function removeItem() external;
+    function addItems(uint edition_id_) external;
+    function removeItem(uint edition_id_, uint index_) external;
 
     function addAux(address aux_) external;
 
 }
 
 
-contract Collection is ERC1155, ERC1155Supply, AccessControl {
+contract Collection is ERC1155, ERC1155Supply, AccessControl, Initializable {
 
     bool _init = false;
 
     ICatalogue private _cat;
+    IMeta private _meta;
     IAuxHandler private _aux_handler;
 
     mapping(string => address) private _hooks;
@@ -70,38 +74,19 @@ contract Collection is ERC1155, ERC1155Supply, AccessControl {
         // _grantRole(MANAGER_ROLE, msg.sender);
     }
 
-    function init(address for_, string memory id_, address cat_, address aux_handler_, address[] memory aux_) public {
+    function init(IPolly.Instance memory instance_) public {
 
-        require(!_init, 'Cannot init twice');
+        super.init();
 
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(MANAGER_ROLE, msg.sender);
+        _grantRole(DEFAULT_ADMIN_ROLE, instance_.owner);
+        _grantRole(MANAGER_ROLE, instance_.owner);
+        _grantRole(MANAGER_ROLE, instance_.aux_handler);
+        _grantRole(MANAGER_ROLE, instance_.meta);
+        _grantRole(MANAGER_ROLE, instance_.cat);
 
-        _coll_id = id_;
-
-        _cat = ICatalogue(cat_);
-        _cat.init();
-        _cat.grantRole(keccak256("DEFAULT_ADMIN_ROLE"), for_);
-        _cat.grantRole(keccak256("MANAGER_ROLE"), for_);
-
-        _aux_handler = IAuxHandler(aux_handler_);
-        _aux_handler.init();
-        _aux_handler.grantRole(keccak256("DEFAULT_ADMIN_ROLE"), for_);
-        _aux_handler.grantRole(keccak256("MANAGER_ROLE"), for_);
-
-        _grantRole(DEFAULT_ADMIN_ROLE, for_);
-        _grantRole(MANAGER_ROLE, for_);
-
-        for(uint256 i = 0; i < aux_.length; i++) {
-          _aux_handler.addAux(aux_[i]);
-        }
-
-        _revokeRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _revokeRole(MANAGER_ROLE, msg.sender);
-
-
-        _init = true;
-
+        _cat = ICatalogue(instance_.cat);
+        _meta = IMeta(instance_.meta);
+        _aux_handler = IAuxHandler(instance_.aux_handler);
 
     }
 
@@ -155,6 +140,26 @@ contract Collection is ERC1155, ERC1155Supply, AccessControl {
     )
     public view returns(ICollection.Edition memory) {
       return _editions[edition_id_];
+    }
+
+
+    function addItem(
+      uint edition_id_,
+      ICatalogue.Item memory item_
+    )
+    public onlyRole(MANAGER_ROLE) {
+      require(!isFinalized(edition_id_), 'EDITION_FINALIZED');
+
+    }
+
+
+    function removeItem(
+      uint edition_id_,
+      uint index_
+    )
+    public onlyRole(MANAGER_ROLE) {
+      require(!isFinalized(edition_id_), 'EDITION_FINALIZED');
+
     }
 
 

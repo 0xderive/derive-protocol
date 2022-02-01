@@ -13,6 +13,7 @@ interface IHooks {
 
   // FILTERS
   function filterGetURI(string memory uri_, uint edition_id_) external view returns(string memory);
+  function filterGetArtwork(string memory artwork_, uint edition_id_) external view returns(string memory);
   function filterGetAvailable(uint available, uint edition_id_) external view returns(uint);
   function filterIsReleased(bool released_, uint edition_id_) external view returns(bool);
   function filterIsFinalized(bool finalized_, uint edition_id_) external view returns(bool);

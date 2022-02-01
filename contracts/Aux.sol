@@ -2,8 +2,10 @@
 pragma solidity ^0.8.4;
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/proxy/Clones.sol";
+import './Initializable.sol';
 import './Collection.sol';
 import './Hooks.sol';
+import './Polly.sol';
 
 import "hardhat/console.sol";
 
@@ -54,7 +56,7 @@ abstract contract Aux {
 
 interface IAuxHandler is IAccessControl, IHooks {
 
-  function init() external;
+  function init(IPolly.Instance memory instance_, address[] memory aux_) external;
   function getCollectionAddress() external view returns(address);
   function addAux(address aux_address_) external;
   function removeAux(address remove_) external;
@@ -64,7 +66,7 @@ interface IAuxHandler is IAccessControl, IHooks {
 }
 
 
-contract AuxHandler is AccessControl {
+contract AuxHandler is AccessControl, Initializable {
 
 
   bool _didInit = false;
@@ -76,21 +78,23 @@ contract AuxHandler is AccessControl {
 
   /// @dev MANAGER_ROLE allow addresses to use the label contract
   bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
-  bytes32 public constant COLLECTION_ROLE = keccak256("COLLECTION_ROLE");
 
 
   /// @dev Inits contract for a given address
-  function init() public {
+  function init(IPolly.Instance memory instance_, address[] memory aux_) public {
 
-    require(!_didInit, 'Cannot init twice');
+    super.init();
 
-    _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-    _grantRole(MANAGER_ROLE, msg.sender);
-    _grantRole(COLLECTION_ROLE, msg.sender);
+    _grantRole(DEFAULT_ADMIN_ROLE, instance_.owner);
+    _grantRole(MANAGER_ROLE, instance_.owner);
 
-    _parent_coll = msg.sender;
+    _grantRole(MANAGER_ROLE, instance_.coll);
 
-    _didInit = true;
+    for(uint256 i = 0; i < aux_.length; i++) {
+      _addAux(aux_[i]);
+    }
+
+    _parent_coll = instance_.coll;
 
   }
 
@@ -98,7 +102,7 @@ contract AuxHandler is AccessControl {
     return _parent_coll;
   }
 
-  function addAux(address aux_address_) public onlyRole(MANAGER_ROLE) {
+  function _addAux(address aux_address_) private {
 
     IAux aux_ = IAux(aux_address_);
     IAux.AuxInfo memory aux_info_ = aux_.getAuxInfo();
@@ -114,6 +118,10 @@ contract AuxHandler is AccessControl {
     _aux.push(aux_);
     _aux_index[address(aux_)] = (_aux.length -1);
 
+  }
+
+  function addAux(address aux_address_) public onlyRole(MANAGER_ROLE) {
+    _addAux(aux_address_);
   }
 
   function removeAux(address remove_) public onlyRole(MANAGER_ROLE) {
@@ -161,7 +169,7 @@ contract AuxHandler is AccessControl {
 
   // ACTIONS
 
-  function actionBeforeMint(uint edition_id_, address sender_) public onlyRole(COLLECTION_ROLE) {
+  function actionBeforeMint(uint edition_id_, address sender_) public onlyRole(MANAGER_ROLE) {
     IAux[] memory hooks_ = getAuxForHook('actionBeforeMint');
     for(uint i = 0; i < hooks_.length; i++) {
       hooks_[i].actionBeforeMint(edition_id_, sender_);
@@ -169,21 +177,21 @@ contract AuxHandler is AccessControl {
   }
 
 
-  function actionAfterMint(uint edition_id_, address sender_) public onlyRole(COLLECTION_ROLE) {
+  function actionAfterMint(uint edition_id_, address sender_) public onlyRole(MANAGER_ROLE) {
     IAux[] memory hooks_ = getAuxForHook('actionAfterMint');
     for(uint i = 0; i < hooks_.length; i++) {
       hooks_[i].actionAfterMint(edition_id_, sender_);
     }
   }
 
- function actionBeforeCreateEdition(ICollection.Edition memory edition_, address sender_) public onlyRole(COLLECTION_ROLE) {
+ function actionBeforeCreateEdition(ICollection.Edition memory edition_, address sender_) public onlyRole(MANAGER_ROLE) {
     IAux[] memory hooks_ = getAuxForHook('actionBeforeCreateEdition');
     for(uint i = 0; i < hooks_.length; i++) {
       hooks_[i].actionBeforeCreateEdition(edition_, sender_);
     }
   }
 
-  function actionAfterCreateEdition(ICollection.Edition memory edition_, address sender_) public onlyRole(COLLECTION_ROLE) {
+  function actionAfterCreateEdition(ICollection.Edition memory edition_, address sender_) public onlyRole(MANAGER_ROLE) {
     IAux[] memory hooks_ = getAuxForHook('actionAfterCreateEdition');
     for(uint i = 0; i < hooks_.length; i++) {
       hooks_[i].actionAfterCreateEdition(edition_, sender_);
@@ -200,6 +208,15 @@ contract AuxHandler is AccessControl {
     }
 
     return uri_;
+  }
+
+  function filterGetArtwork(string memory artwork_, uint edition_id_) external view returns(string memory){
+    IAux[] memory hooks_ = getAuxForHook('filterGetArtwork');
+    for(uint256 i = 0; i < hooks_.length; i++) {
+      artwork_ = hooks_[i].filterGetArtwork(artwork_, edition_id_);
+    }
+
+    return artwork_;
   }
 
   function filterGetAvailable(uint available_, uint edition_id_) external view returns(uint){

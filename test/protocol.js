@@ -26,8 +26,8 @@ describe("Derive", function () {
     console.log(`   wallet2 -> `, wallet2.address.yellow);
     console.log(`   wallet3 -> `, wallet3.address.red);
 
-    const Main = await ethers.getContractFactory("Main");
-    contracts.main = await Main.deploy();
+    const Polly = await ethers.getContractFactory("Polly");
+    contracts.main = await Polly.deploy();
 
     const AuxMeta = await ethers.getContractFactory("AuxMeta");
     contracts.meta = await AuxMeta.deploy();
@@ -46,21 +46,18 @@ describe("Derive", function () {
 
   });
 
-  it('should allow anyone to create a collection proxy', async function(){
+  it('should allow anyone to create a collection instance', async function(){
 
     await users[1].createCollection(collID, [contracts.artwork.address, contracts.meta.address]);
-    const proxy = await contracts.main.getCollectionProxy(collID);
+    const instance = await contracts.main.getCollectionInstance(collID);
 
     const Collection = await ethers.getContractFactory("Collection");
-    const Catalogue = await ethers.getContractFactory("Catalogue");
 
-    console.log(`   Collection proxy -> `, proxy.coll.green);
-    coll1 = await Collection.attach(proxy.coll).connect(wallet1)
-    cat1 = await Catalogue.attach(proxy.cat).connect(owner)
-    // await cat1.addManager(proxy.coll)
+    console.log(`   Collection instance -> `, instance.coll.green);
+    coll1 = await Collection.attach(instance.coll).connect(wallet1);
 
-    expect(proxy.coll).to.be.a.properAddress
-    expect(proxy.cat).to.be.a.properAddress
+    expect(instance.coll).to.be.a.properAddress
+    expect(instance.cat).to.be.a.properAddress
 
   });
 

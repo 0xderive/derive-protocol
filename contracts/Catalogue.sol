@@ -2,6 +2,8 @@
 pragma solidity ^0.8.2;
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import "./Polly.sol";
+import "./Initializable.sol";
 import "hardhat/console.sol";
 
 
@@ -31,7 +33,7 @@ interface ICatalogue is IAccessControl {
     string value;
   }
 
-  function init() external;
+  function init(IPolly.Instance memory instance_) external;
 
   // Items
   function getItem(uint item_id_) external view returns(Item memory);
@@ -51,7 +53,7 @@ interface ICatalogue is IAccessControl {
 
 
 
-contract Catalogue is AccessControl {
+contract Catalogue is AccessControl, Initializable {
 
   using Counters for Counters.Counter;
 
@@ -76,17 +78,18 @@ contract Catalogue is AccessControl {
   // EVENTS
   event itemCreated(uint indexed _id, address indexed _by);
   event sourceAdded(uint indexed _id, ICatalogue.Source indexed _source);
-  event metaUpdated(string indexed _key, string indexed value);
-  event metaDeleted(string indexed _key, string indexed value);
 
   /// @dev Inits contract for a given address
-  function init() public {
-    require(!_didInit, 'Cannot init twice');
+  function init(IPolly.Instance memory instance_) public {
 
-    _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-    _grantRole(MANAGER_ROLE, msg.sender);
+    super.init();
 
-    _didInit = true;
+    _grantRole(DEFAULT_ADMIN_ROLE, instance_.owner);
+    _grantRole(MANAGER_ROLE, instance_.owner);
+
+    _grantRole(MANAGER_ROLE, instance_.coll);
+
+
   }
 
   /**
@@ -237,44 +240,44 @@ contract Catalogue is AccessControl {
   ****
   */
 
-  /// @dev private function to update meta for item_id_
-  function _updateMeta(uint item_id_, string memory key_, string memory value_) private {
-    _meta[item_id_][key_] = value_;
-    emit metaUpdated(key_, value_);
-  }
+  // /// @dev private function to update meta for item_id_
+  // function _updateMeta(uint item_id_, string memory key_, string memory value_) private {
+  //   _meta[item_id_][key_] = value_;
+  //   emit metaUpdated(key_, value_);
+  // }
 
-  /// @dev update meta for item_id_
-  function updateMeta(uint item_id_, ICatalogue.Meta[] memory meta_) public {
-    require(itemExists(item_id_), "Invalid item");
-    require(hasItemRole(msg.sender, item_id_, 'update_meta'), "Missing item role");
+  // /// @dev update meta for item_id_
+  // function updateMeta(uint item_id_, ICatalogue.Meta[] memory meta_) public {
+  //   require(itemExists(item_id_), "Invalid item");
+  //   require(hasItemRole(msg.sender, item_id_, 'update_meta'), "Missing item role");
 
-    for(uint256 i = 0; i < meta_.length; i++) {
-      _updateMeta(item_id_, meta_[i].key, meta_[i].value);
-    }
+  //   for(uint256 i = 0; i < meta_.length; i++) {
+  //     _updateMeta(item_id_, meta_[i].key, meta_[i].value);
+  //   }
 
-  }
+  // }
 
-  /// @dev get meta for item_id_
-  function getMeta(uint item_id_, string memory key_) public view returns(string memory) {
-    require(itemExists(item_id_), "Invalid item");
-    return _meta[item_id_][key_];
-  }
+  // /// @dev get meta for item_id_
+  // function getMeta(uint item_id_, string memory key_) public view returns(string memory) {
+  //   require(itemExists(item_id_), "Invalid item");
+  //   return _meta[item_id_][key_];
+  // }
 
-  /// @dev private _delete meta for item_id_
-  function _deleteMeta(uint item_id_, string memory key_) private {
-    string memory value_ = _meta[item_id_][key_];
-    delete(_meta[item_id_][key_]);
-    emit metaDeleted(key_, value_);
-  }
+  // /// @dev private _delete meta for item_id_
+  // function _deleteMeta(uint item_id_, string memory key_) private {
+  //   string memory value_ = _meta[item_id_][key_];
+  //   delete(_meta[item_id_][key_]);
+  //   emit metaDeleted(key_, value_);
+  // }
 
-  /// @dev delete meta for item_id_
-  function deleteMeta(uint item_id_, string[] memory keys_) public {
-    require(itemExists(item_id_), "Invalid item");
-    require(hasItemRole(msg.sender, item_id_, 'update_meta'), "Missing item role");
-    for (uint256 i = 0; i < keys_.length; i++) {
-      _deleteMeta(item_id_, keys_[i]);
-    }
-  }
+  // /// @dev delete meta for item_id_
+  // function deleteMeta(uint item_id_, string[] memory keys_) public {
+  //   require(itemExists(item_id_), "Invalid item");
+  //   require(hasItemRole(msg.sender, item_id_, 'update_meta'), "Missing item role");
+  //   for (uint256 i = 0; i < keys_.length; i++) {
+  //     _deleteMeta(item_id_, keys_[i]);
+  //   }
+  // }
 
 
   /**
